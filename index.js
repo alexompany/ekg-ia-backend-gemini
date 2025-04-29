@@ -1,18 +1,17 @@
-import express from 'express';
-import axios from 'axios';
-import cors from 'cors';
-import dotenv from 'dotenv';
-dotenv.config();
+const express = require('express');
+const axios = require('axios');
+const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 const PORT = process.env.PORT || 3000;
-
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
-app.post('/ekg', async (req, res) => {
+// 🫀 Ruta para EKG
+app.post('/completions', async (req, res) => {
   const { image_base64 } = req.body;
 
   if (!image_base64) {
@@ -51,9 +50,7 @@ No expliques términos. No te identifiques como IA. Solo responde clínicamente.
 
   try {
     const response = await axios.post(GEMINI_API_URL, payload, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: { 'Content-Type': 'application/json' }
     });
 
     const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Respuesta vacía de Gemini';
@@ -69,6 +66,7 @@ No expliques términos. No te identifiques como IA. Solo responde clínicamente.
   }
 });
 
+// 🫀 Ruta para Ecocardiograma
 app.post('/echo', async (req, res) => {
   const { image_base64 } = req.body;
 
@@ -108,24 +106,18 @@ No expliques términos. No te identifiques como IA. Solo responde clínicamente.
 
   try {
     const response = await axios.post(GEMINI_API_URL, payload, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: { 'Content-Type': 'application/json' }
     });
 
     const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Respuesta vacía de Gemini';
     res.json({ content });
 
   } catch (error) {
-    console.error('Error consultando Gemini:', error.response?.data || error.message);
-    if (error.response) {
-      res.status(error.response.status).json({ error: error.response.data });
-    } else {
-      res.status(500).json({ error: 'Error desconocido en servidor Gemini' });
-    }
+    console.error('Error en análisis de ECO:', error.response?.data || error.message);
+    res.status(500).json({ error: 'Error al procesar imagen de ecocardiograma.' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor Gemini activo en puerto ${PORT}`);
+  console.log(`Servidor activo en puerto ${PORT}`);
 });
