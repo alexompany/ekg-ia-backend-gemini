@@ -1,123 +1,66 @@
 const express = require('express');
-const axios = require('axios');
 const cors = require('cors');
-require('dotenv').config();
+const bodyParser = require('body-parser');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// API Key directa (reemplaza .env)
+const genAI = new GoogleGenerativeAI("AIzaSyAtUhl62pNjZRFsL9OTIhZFuCp57RhyHqo");
 
 const app = express();
+const port = process.env.PORT || 3000;
+
 app.use(cors());
-app.use(express.json({ limit: '15mb' }));
+app.use(bodyParser.json({ limit: '15mb' }));
 
-const PORT = process.env.PORT || 3000;
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`;
-
-// 🫀 Ruta para EKG
 app.post('/completions', async (req, res) => {
-  const { image_base64 } = req.body;
+  try {
+    const { image_base64 } = req.body;
 
-  if (!image_base64) {
-    return res.status(400).json({ error: 'Falta imagen en base64' });
-  }
+    if (!image_base64) {
+      return res.status(400).json({ error: 'Falta imagen en base64' });
+    }
 
-  const payload = {
-    contents: [
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
+
+    const result = await model.generateContent([
       {
-        parts: [
-          {
-            inline_data: {
-              mime_type: "image/jpeg",
-              data: image_base64,
-            }
-          },
-          {
-            text: `Actúa como cardiólogo experto en interpretación de EKG. Evalúa la imagen proporcionada y responde con:
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: image_base64,
+        },
+      },
+      {
+        text: `Actúa como cardiólogo experto. Evalúa este EKG según guías clínicas internacionales. Devuélveme:
 
 - Frecuencia cardíaca (lpm)
-- Ritmo cardíaco (sinusal, fibrilación, flutter)
+- Ritmo cardíaco (sinusal, fibrilación, etc.)
 - Intervalo PR (normal, corto o prolongado)
-- Duración del QRS (normal o ancho)
-- QTc corregido (normal o prolongado)
+- QRS (normal o ancho)
+- QTc (normal o prolongado)
 - Eje eléctrico
-- Anomalías en ST y T
+- Anomalías en ST/T
 - Diagnóstico principal
-- Comentario breve (máximo 2 líneas)
+- Comentario médico (máximo 2 líneas)
 
-No expliques términos. No te identifiques como IA. Solo responde clínicamente.`
-          }
-        ]
-      }
-    ]
-  };
+No expliques términos. No digas que eres una IA. Solo responde clínicamente.`,
+      },
+    ]);
 
-  try {
-    const response = await axios.post(GEMINI_API_URL, payload, {
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Respuesta vacía de Gemini';
-    res.json({ content });
+    const text = result.response.text();
+    res.json({ content: text });
 
   } catch (error) {
-    console.error('Error consultando Gemini:', error.response?.data || error.message);
-    if (error.response) {
-      res.status(error.response.status).json({ error: error.response.data });
-    } else {
-      res.status(500).json({ error: 'Error desconocido en servidor Gemini' });
-    }
+    console.error("❌ Error Gemini:", error.message || error);
+    res.status(500).json({ error: 'Error al procesar imagen con Gemini.' });
   }
 });
 
-// 🫀 Ruta para Ecocardiograma
-app.post('/echo', async (req, res) => {
-  const { image_base64 } = req.body;
-
-  if (!image_base64) {
-    return res.status(400).json({ error: 'Falta imagen en base64' });
-  }
-
-  const payload = {
-    contents: [
-      {
-        parts: [
-          {
-            inline_data: {
-              mime_type: "image/jpeg",
-              data: image_base64,
-            }
-          },
-          {
-            text: `Actúa como cardiólogo experto en ecocardiografía. Evalúa la imagen proporcionada y responde con:
-
-- Fracción de eyección del ventrículo izquierdo (FEVI)
-- Función sistólica y diastólica del VI
-- Dimensiones y función del ventrículo derecho (TAPSE, FAC)
-- Presión sistólica estimada de la arteria pulmonar (PSAP)
-- Evaluación de las válvulas cardíacas: presencia de estenosis o insuficiencia (aórtica, mitral, tricuspídea, pulmonar)
-- Tamaño de la aurícula izquierda y vena cava inferior
-- Presencia de derrame pericárdico, masas intracardíacas o vegetaciones
-- Diagnóstico principal
-- Comentario breve (máximo 2 líneas)
-
-No expliques términos. No te identifiques como IA. Solo responde clínicamente.`
-          }
-        ]
-      }
-    ]
-  };
-
-  try {
-    const response = await axios.post(GEMINI_API_URL, payload, {
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Respuesta vacía de Gemini';
-    res.json({ content });
-
-  } catch (error) {
-    console.error('Error en análisis de ECO:', error.response?.data || error.message);
-    res.status(500).json({ error: 'Error al procesar imagen de ecocardiograma.' });
-  }
+app.get('/', (req, res) => {
+  res.send('Servidor Gemini activo y escuchando.');
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor activo en puerto ${PORT}`);
+app.listen(port, () => {
+  console.log(`🚀 Servidor Gemini escuchando en http://localhost:${port}`);
 });
+
+
